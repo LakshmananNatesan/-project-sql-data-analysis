@@ -1,0 +1,280 @@
+
+USE master;
+GO
+
+-- Drop and recreate the 'DataWarehouseAnalytics' database
+IF EXISTS (SELECT 1 FROM sys.databases WHERE name = 'DataWarehouseAnalytics')
+BEGIN
+    ALTER DATABASE DataWarehouseAnalytics SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+    DROP DATABASE DataWarehouseAnalytics;
+END;
+GO
+
+-- Create the 'DataWarehouseAnalytics' database
+CREATE DATABASE DataWarehouseAnalytics;
+GO
+
+USE DataWarehouseAnalytics;
+GO
+
+-- Create Schemas
+
+CREATE SCHEMA gold;
+GO
+
+CREATE TABLE gold.dim_customers(
+	customer_key int,
+	customer_id int,
+	customer_number nvarchar(50),
+	first_name nvarchar(50),
+	last_name nvarchar(50),
+	country nvarchar(50),
+	marital_status nvarchar(50),
+	gender nvarchar(50),
+	birthdate date,
+	create_date date
+);
+GO
+
+CREATE TABLE gold.dim_products(
+	product_key int ,
+	product_id int ,
+	product_number nvarchar(50) ,
+	product_name nvarchar(50) ,
+	category_id nvarchar(50) ,
+	category nvarchar(50) ,
+	subcategory nvarchar(50) ,
+	maintenance nvarchar(50) ,
+	cost int,
+	product_line nvarchar(50),
+	start_date date 
+);
+GO
+
+CREATE TABLE gold.fact_sales(
+	order_number nvarchar(50),
+	product_key int,
+	customer_key int,
+	order_date date,
+	shipping_date date,
+	due_date date,
+	sales_amount int,
+	quantity tinyint,
+	price int 
+);
+GO
+TRUNCATE TABLE gold.dim_customers;
+GO
+
+BULK INSERT gold.dim_customers
+FROM 'C:\sql\sql-data-analytics-project\datasets\csv-files\gold.dim_customers.csv'
+WITH (
+    FIRSTROW = 2,
+    FIELDTERMINATOR = ',',
+    ROWTERMINATOR = '\n',
+    TABLOCK
+);
+GO
+
+TRUNCATE TABLE gold.dim_products;
+GO
+
+BULK INSERT gold.dim_products
+FROM 'C:\sql\sql-data-analytics-project\datasets\csv-files\gold.dim_products.csv'
+WITH (
+    FIRSTROW = 2,
+    FIELDTERMINATOR = ',',
+    ROWTERMINATOR = '\n',
+    TABLOCK
+);
+GO
+
+TRUNCATE TABLE gold.fact_sales;
+GO
+
+BULK INSERT gold.fact_sales
+FROM 'C:\sql\sql-data-analytics-project\datasets\csv-files\gold.fact_sales.csv'
+WITH (
+    FIRSTROW = 2,
+    FIELDTERMINATOR = ',',
+    ROWTERMINATOR = '\n',
+    TABLOCK
+);
+GO
+-- Database Exploration 
+-- Explore all tables
+
+SELECT *
+FROM INFORMATION_SCHEMA.TABLES
+
+-- Explore all columns
+SELECT *
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_NAME ='dim_customers'
+
+-- Dimension Exploration
+-- Identify the unique values in each dimension
+-- Recongnizing how data might be grouped or segmented
+
+-- Explore all countries our customers come from
+SELECT DISTINCT country FROM gold.dim_customers
+
+SELECT DISTINCT category,subcategory,product_name FROM gold.dim_products
+ORDER BY 1,2,3
+
+
+-- From this we can see how each and everyhthing are related with each other
+
+-- Date Exploration
+-- Identify the earliest and latest date (boundaries)
+-- we can understand the timespan of the range 
+
+SELECT MIN(order_date) as first_order_date,MAX(order_date) AS max_order_Date ,DATEDIFF(year,MIN(order_date),MAX(order_date)) as order_Range_months
+FROM gold.fact_sales
+
+-- find the youngest and oldest customer
+
+SELECT 
+MIN(birthdate) as oldest_birthdate,
+DATEDIFF(year,MIN(birthdate),GETDATE()) AS oldest_age,
+MAX(birthdate) as youngest_birthdate,
+DATEDIFF(year,MAX(birthdate),GETDATE()) AS youngest_age
+FROM gold.dim_customers
+
+
+-- Measures Exploration
+
+-- Calculate the key metric of the business (Big NUMBERS)
+-- Highest Level of Aggregration | Lowest level of detail
+SELECT *
+FROM gold.dim_products
+-- Find the total sales
+SELECT sum(sales_amount) as overall_Sales
+FROM gold.fact_sales
+
+-- Find how many items are sold
+
+
+-- Find the average selling price
+
+
+-- Find the total no.of.orders
+
+
+
+select * from GOLD.fact_sales
+
+-- find the total no.of.products
+
+
+-- find the total no.of.customers
+
+
+-- find the total no.of.customers that has placed an order
+
+-- Generate a Report that shpws all key metrics of the business
+
+
+
+SELECT 'Total Sales' as measure_name,sum(sales_amount) as measure_value FROM gold.fact_sales
+UNION ALL 
+SELECT 'items_sold' as measure_name , COUNT(quantity) as  measure_value FROM gold.fact_sales
+UNION ALL 
+SELECT 'avg_price' as measure_name, AVG(price) as measure_value FROM gold.fact_sales
+UNION ALL 
+SELECT 'count_orders' as measure_name ,count(order_number) as measure_value FROM gold.fact_sales
+UNION ALL 
+SELECT 'count_orders_distinct' as measure_name, count(DISTINCT order_number) as measure_value FROM gold.fact_sales
+UNION ALL 
+SELECT 'total_prodcuts' as measure_name , COUNT(product_key) as measure_value from gold.dim_products
+UNION ALL 
+SELECT 'total_prodcuts' as measure_name,COUNT(DISTINCT product_key) as measure_value from gold.dim_products
+UNION ALL 
+SELECT 'total_customers' as measure_name, count(customer_key) AS measure_value FROM gold.dim_customers
+UNION ALL 
+SELECT 'total_customers' as mesaure_distinct_name,count(DISTINCT customer_key) as measure_value  FROM gold.fact_sales
+
+
+-- Magnitude Analysis
+
+-- Compare the measure values by categories
+-- It helps us understand the importance of  different categories
+--[ measure ]by [dimension]
+
+
+-- Find total customers by countries
+SELECT country,COUNT(customer_key) as total_Customers
+FROM gold.dim_customers
+GROUP BY country
+ORDER BY total_Customers
+
+-- Find total customers by gender
+
+SELECT gender,COUNT(customer_id) as count
+FROM gold.dim_customers
+GROUP BY gender ORDER BY count desc
+
+-- find total products by category
+SELECT category,COUNT(product_id) as count1
+FROM gold.dim_products
+WHERE  category IS NOT NULL
+GROUP BY category
+ORDER BY count1
+-- what is the average costs in each category
+SELECT category ,AVG(cost) AS average_Cost
+FROM gold.dim_products
+GROUP BY category
+ORDER BY average_Cost DESC
+-- what is the total revenue generated for each category
+SELECT dc.category,SUM(fc.sales_amount) as revenue 
+from GOLD.dim_products dc
+JOIN gold.fact_sales fc ON dc.product_key = fc.product_key 
+GROUP BY dc.category
+ORDER BY revenue
+-- find the total revenue generated by each customer
+SELECT dc.customer_id,dc.first_name,dc.last_name,SUM(fc.sales_amount) as revenue 
+from GOLD.dim_customers dc
+JOIN gold.fact_sales fc ON dc.customer_key = fc.product_key 
+GROUP BY dc.customer_id,dc.first_name,dc.last_name
+ORDER BY revenue
+-- what is the distribution of sold items across countries
+SELECT dc.country,SUM(fc.quantity) as overall_quantity 
+from gold.fact_sales fc
+JOIN gold.dim_customers dc ON fc.customer_key = dc.customer_key
+GROUP BY dc.country
+ORDER BY dc.country
+
+-- order the values of dimension by measure and to identify top n performers and bottom n performers
+-- rank[dimension ] by [ measure]
+
+-- which 5 products generate high revenue
+
+
+with cte as (
+SELECT dp.product_name,SUM(fs.sales_amount) as revenue,ROW_NUMBER() OVER (order by  SUM(fs.sales_amount) desc) AS rn
+FROM gold.dim_products dp
+JOIN gold.fact_sales fs ON dp.product_key = fs.product_key
+GROUP BY dp.product_name)
+
+SELECT *
+FROM cte
+WHERE rn <=5
+
+-- what are the 5 worst performing products in terms of sales
+with cte as (
+SELECT dc.product_name,SUM(fc.sales_amount) as revenue ,RANK() OVER ( ORDER BY SUM(fc.sales_amount)ASC) AS rn
+from GOLD.dim_products dc
+JOIN gold.fact_sales fc ON dc.product_key = fc.product_key 
+GROUP BY dc.product_name)
+
+select *
+from cte 
+where rn <=5
+
+
+SELECT *
+FROM gold.dim_customers
+SELECT *
+FROM gold.dim_products
+SELECT *
+FROM gold.fact_sales
