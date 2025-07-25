@@ -1,2 +1,1 @@
-# -project-sql-data-analysis
-This Project focuses on doing exploratory data analysis in sql 
+This repository demonstrates the creation and analysis of a mini Data Warehouse using SQL Server. It includes scripts to design schemas, create dimension and fact tables, load data using BULK INSERT, and perform exploratory analytics on customer, product, and sales data.
